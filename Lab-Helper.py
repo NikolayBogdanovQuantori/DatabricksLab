@@ -4,10 +4,13 @@ import gzip
 import shutil
 import hashlib
 from pyspark.sql import SparkSession
-from pyspark.sql.types import StructField, StructType, StringType
+from pyspark.sql.types import StructField, StructType, StringType, TimestampType
 from Bio.PDB.MMCIF2Dict import MMCIF2Dict
 from pyspark.sql.types import StructField, StructType, StringType, LongType
-from  pyspark.sql.functions import lit, col
+from  pyspark.sql.functions import lit, col, current_timestamp
+from datetime import datetime
+#
+import time
 
 spark = SparkSession.builder.getOrCreate()
 
@@ -63,7 +66,7 @@ class TableDecsriber:
         for key, value in columns_schema.items():
             self.columns_schema['_'.join(key.split('.')[1:])] = value
     
-    def set_data(self, mmcif_dict):
+    def set_data(self, mmcif_dict, ):
         columns_dict = {}
         dataset_size = -1
         for column_name in self.raw_columns_schema.keys():
@@ -89,7 +92,7 @@ class TableDecsriber:
     def get_rows(self):
         return self.rows
 
-    def get_raw_schema(self):
+    def get_raw_df_schema(self):
         result_schema_columns_list = [StructField(column_name, StringType(), True) for column_name in self.columns_schema.keys()]
         return StructType(result_schema_columns_list)
   
@@ -98,36 +101,82 @@ class TableDecsriber:
 
 # COMMAND ----------
 
-import time
-
-def fill_table(current_table: TableDecsriber, mmcif_dict, experiment_id):
-    # adding data rows to current TableDescriber object:
-    start = time.time()
-    current_table.set_data(mmcif_dict)
-    end = time.time()
-    TIME_MEASUREMENTS["adding_rows"].append(end-start)
-    # defining temp view with STRING columns
-    start = time.time()
-    temp_view_name = f"v_temp_{current_table.name}"
-    raw_df = spark.createDataFrame(current_table.get_rows(), current_table.get_raw_schema())
-    raw_df = raw_df.withColumn("experiment_id", lit(f"{experiment_id}"))
-    raw_df.createOrReplaceTempView(temp_view_name)
-    #raw_df.show(2)
-    end = time.time()
-    TIME_MEASUREMENTS["register_tv"].append(end-start)
+def process_experiments(tables: list[TableDecsriber], experiments_files: list[ExperimentFile]):
+    updated_experiments_schema = StructType([
+        StructField('experiment_id', StringType(), False),
+        StructField('updated_ts', TimestampType(), False),
+        StructField('hash_sum', StringType(), False)
+    ])
+    updated_experiments_data: list[tuple[str, datetime.datetime, str]] = []
+    #
+    tables_dataframes = {}
+    for table in tables:
+        tables_dataframes[table.name] = spark.createDataFrame([], table.get_raw_df_schema())
+        tables_dataframes[table.name] = tables_dataframes[table.name].withColumn('experiment_id', lit(None).cast(StringType()))
+    #
+    for j, experiment in enumerate(experiments_files):
+        print(j, experiment.id)
+        start = time.time()
+        is_experiment_present = spark.table("register_pdb_actualizer").select("experiment_id")\
+            .where(col("experiment_id") == f"{experiment.id}")\
+            .where(col("hash_sum") == f"{experiment.hash_sum}")\
+            .count() > 0
+        if is_experiment_present is True and experiment.is_forced is False:
+            print(f"experiment {experiment.id} already in DB, file skipped")
+            continue
+        end = time.time()
+        TIME_MEASUREMENTS["is_present_check"].append(end-start)
+        #
+        start = time.time()
+        mmcif_dict = MMCIF2Dict(experiment.path)
+        end = time.time()
+        TIME_MEASUREMENTS["dict_read"].append(end-start)
+        #
+        for table in tables:
+            start = time.time()
+            table.set_data(mmcif_dict)
+            end = time.time()
+            TIME_MEASUREMENTS["set_data_for_table"].append(end-start)
+            #
+            start = time.time()
+            current_experiment_current_table_df = spark.createDataFrame(table.get_rows(), table.get_raw_df_schema())
+            current_experiment_current_table_df = current_experiment_current_table_df.withColumn('experiment_id', lit(experiment.id).cast(StringType()))
+            end = time.time()
+            TIME_MEASUREMENTS["create_experiment_table_df"].append(end-start)
+            #
+            start = time.time()
+            tables_dataframes[table.name] = tables_dataframes[table.name].union(current_experiment_current_table_df)
+            end = time.time()
+            TIME_MEASUREMENTS["union"].append(end-start)
+        #
+        start = time.time()
+        updated_experiments_data.append(tuple((experiment.id, datetime.now(), experiment.hash_sum)))
+        end = time.time()
+        TIME_MEASUREMENTS["append_updated"].append(end-start)
+    #
+    for table in tables:
+        df = tables_dataframes[f"{table.name}"]
+        df.createOrReplaceTempView("temp_v_current_table_df")
+        #
+        start = time.time()
+        delete_query = f"DELETE FROM {table.name} WHERE experiment_id IN (SELECT DISTINCT experiment_id FROM temp_v_current_table_df)"
+        spark.sql(delete_query)
+        end = time.time()
+        TIME_MEASUREMENTS["deleting"].append(end-start)
+        #
+        start = time.time()
+        insert_query = f"INSERT INTO {table.name} (experiment_id, updated_ts, {', '.join(table.get_schema_dict().keys())})\n"
+        insert_query += "SELECT \n \texperiment_id,\n \tcurrent_timestamp() as updated_ts\n"
+        for column_name in table.get_schema_dict().keys():
+            insert_query += f"\t, {column_name}\n"
+        insert_query += f"FROM temp_v_current_table_df;"
+        spark.sql(insert_query)
+        end = time.time()
+        TIME_MEASUREMENTS["inserting"].append(end-start)
+        print(f"{table.name} updated")
     #
     start = time.time()
-    spark.sql(f'DELETE FROM {current_table.name} WHERE experiment_id="{experiment_id}"')
+    updated_experiments_df = spark.createDataFrame(updated_experiments_data, updated_experiments_schema)
+    updated_experiments_df.createOrReplaceTempView("temp_v_updated_experiments_df")
     end = time.time()
-    TIME_MEASUREMENTS["deleting"].append(end-start)
-    #
-    start = time.time()
-    insert_query = f"INSERT INTO {current_table.name} (experiment_id, {', '.join(current_table.get_schema_dict().keys())})\n"
-    insert_query += "SELECT \n \texperiment_id\n"
-    for column_name, column_type in current_table.get_schema_dict().items():
-        insert_query += f"\t,CAST(CASE {column_name} WHEN '?' THEN NULL WHEN '.' THEN NULL ELSE {column_name} END AS {column_type}) AS {column_name}\n"
-    insert_query += f"FROM {temp_view_name};"
-    #print(insert_query)
-    spark.sql(insert_query)
-    end = time.time()
-    TIME_MEASUREMENTS["inserting"].append(end-start)
+    TIME_MEASUREMENTS["create_updated_experiment_temp_v"].append(end-start)

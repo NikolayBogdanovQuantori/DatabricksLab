@@ -4,22 +4,6 @@
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC SELECT * FROM config_pdb_actualizer;
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC TRUNCATE TABLE config_pdb_actualizer;
-# MAGIC 
-# MAGIC INSERT INTO config_pdb_actualizer VALUES
-# MAGIC     ("100d", FALSE),
-# MAGIC     --("1NIH", TRUE),
-# MAGIC     ("402d", TRUE)d
-# MAGIC ;
-
-# COMMAND ----------
-
 def fill_config_pdb_actualizer(path):
     with open(path, 'r') as infile:
         lines = infile.readlines()
@@ -28,6 +12,28 @@ def fill_config_pdb_actualizer(path):
     values = [f'("{line.rstrip()}", TRUE)' for line in lines]
     insert_sql += ',\n'.join(values)
     spark.sql(insert_sql)
-    
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT * FROM config_pdb_actualizer order by experiment_id;
+
+# COMMAND ----------
+
+# %sql
+# TRUNCATE TABLE config_pdb_actualizer;
+
+# INSERT INTO config_pdb_actualizer VALUES
+#     ("100d", FALSE),
+#     --("1NIH", TRUE),
+#     ("402d", TRUE)d
+# ;
+
+# COMMAND ----------
 
 fill_config_pdb_actualizer('/dbfs/FileStore/Lab/Tests/test_1.txt')
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT * FROM config_pdb_actualizer order by experiment_id;

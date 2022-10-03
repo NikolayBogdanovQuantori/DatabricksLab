@@ -18,7 +18,7 @@ CREATE OR REPLACE TABLE config_pdb_actualizer
 CREATE OR REPLACE TABLE register_pdb_actualizer
 (
   experiment_id STRING NOT NULL,
-  run_ts TIMESTAMP NOT NULL,
+  updated_ts TIMESTAMP NOT NULL,
   hash_sum STRING NOT NULL  
 )
 
@@ -27,6 +27,7 @@ CREATE OR REPLACE TABLE register_pdb_actualizer
 CREATE OR REPLACE TABLE bronze_entity
 (
   seq_id LONG GENERATED ALWAYS AS IDENTITY,
+  updated_ts TIMESTAMP NOT NULL,
   experiment_id STRING
 )
 PARTITIONED BY(experiment_id)
@@ -38,6 +39,7 @@ PARTITIONED BY(experiment_id)
 CREATE OR REPLACE TABLE bronze_pdbx_database_PDB_obs_spr
 (
   seq_id LONG GENERATED ALWAYS AS IDENTITY,
+  updated_ts TIMESTAMP NOT NULL,
   experiment_id STRING
 )
 PARTITIONED BY(experiment_id)
@@ -48,6 +50,7 @@ PARTITIONED BY(experiment_id)
 CREATE OR REPLACE TABLE bronze_entity_poly_seq
 (
   seq_id LONG GENERATED ALWAYS AS IDENTITY,
+  updated_ts TIMESTAMP NOT NULL,
   experiment_id STRING
 )
 PARTITIONED BY(experiment_id)
@@ -58,6 +61,7 @@ PARTITIONED BY(experiment_id)
 CREATE OR REPLACE TABLE bronze_chem_comp
 (
   seq_id LONG GENERATED ALWAYS AS IDENTITY,
+  updated_ts TIMESTAMP NOT NULL,
   experiment_id STRING
 )
 PARTITIONED BY(experiment_id)
@@ -68,6 +72,7 @@ PARTITIONED BY(experiment_id)
 CREATE OR REPLACE TABLE bronze_exptl
 (
   seq_id LONG GENERATED ALWAYS AS IDENTITY,
+  updated_ts TIMESTAMP NOT NULL,
   experiment_id STRING
 )
 PARTITIONED BY(experiment_id)
