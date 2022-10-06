@@ -1,12 +1,15 @@
 -- Databricks notebook source
 DROP DATABASE IF EXISTS LAB CASCADE;
 
-CREATE DATABASE IF NOT EXISTS LAB;
+CREATE DATABASE LAB;
+
+-- COMMAND ----------
+
 USE DATABASE LAB;
 
 -- COMMAND ----------
 
-CREATE OR REPLACE TABLE config_pdb_actualizer
+CREATE TABLE IF NOT EXISTS config_pdb_actualizer
 (
   experiment_id STRING,
   is_forced BOOLEAN
@@ -72,6 +75,66 @@ PARTITIONED BY(experiment_id)
 CREATE OR REPLACE TABLE bronze_exptl
 (
   seq_id LONG GENERATED ALWAYS AS IDENTITY,
+  updated_ts TIMESTAMP NOT NULL,
+  experiment_id STRING
+)
+PARTITIONED BY(experiment_id)
+;
+
+-- COMMAND ----------
+
+-- MAGIC %md
+-- MAGIC SILVER PART:
+
+-- COMMAND ----------
+
+CREATE OR REPLACE TABLE silver_entity
+(
+  seq_id LONG,
+  updated_ts TIMESTAMP NOT NULL,
+  experiment_id STRING
+)
+PARTITIONED BY(experiment_id)
+;
+
+-- COMMAND ----------
+
+CREATE OR REPLACE TABLE silver_pdbx_database_PDB_obs_spr
+(
+  seq_id LONG,
+  updated_ts TIMESTAMP NOT NULL,
+  experiment_id STRING
+)
+PARTITIONED BY(experiment_id)
+;
+
+-- COMMAND ----------
+
+CREATE OR REPLACE TABLE silver_entity_poly_seq
+(
+  seq_id LONG,
+  updated_ts TIMESTAMP NOT NULL,
+  experiment_id STRING
+)
+PARTITIONED BY(experiment_id)
+;
+
+-- COMMAND ----------
+
+CREATE OR REPLACE TABLE silver_chem_comp
+(
+  seq_id LONG,
+  updated_ts TIMESTAMP NOT NULL,
+  experiment_id STRING
+)
+PARTITIONED BY(experiment_id)
+;
+
+-- COMMAND ----------
+
+CREATE OR REPLACE TABLE silver_exptl
+(
+  seq_id LONG,
   updated_ts TIMESTAMP NOT NULL,
   experiment_id STRING
 )

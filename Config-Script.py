@@ -53,8 +53,34 @@ def check_bronze_tables_columns(tables_info) -> list[TableDecsriber]:
         bronze_table_schema = {column_name: "STRING" for column_name in table_schema.keys()} # for bronze tables all column types are set to STRING
         result_table_describers.append(TableDecsriber(table_name=bronze_table_name, columns_schema=bronze_table_schema))
         columns_list = spark.table(bronze_table_name).columns
-        for column_name in result_table_describers[-1].get_schema_dict().keys():
+        added_columns = []
+        for column_name, column_type in result_table_describers[-1].get_schema_dict().items():
             if column_name not in columns_list:
-                spark.sql(f"ALTER TABLE {bronze_table_name} ADD COLUMNS ({column_name} STRING);")
-                print(f"new column {column_name} of type STRING was added to table {bronze_table_name}")
+                added_columns.append(f'{column_name} STRING')
+        if len(added_columns) > 0:
+            alter_query = f"ALTER TABLE {bronze_table_name} ADD COLUMNS (\n\t"
+            alter_query += '\n\t,'.join(added_columns)
+            alter_query += ');'
+            print(alter_query)
+            spark.sql(alter_query)
+    return result_table_describers
+
+# COMMAND ----------
+
+def check_silver_tables_columns(tables_info) -> list[TableDecsriber]:
+    result_table_describers: list[TableDecsriber] = []
+    for table_name, table_schema in tables_info.items():
+        silver_table_name = f"silver_{table_name}"
+        result_table_describers.append(TableDecsriber(table_name=silver_table_name, columns_schema=table_schema))
+        columns_list = spark.table(silver_table_name).columns
+        added_columns = []
+        for column_name, column_type in result_table_describers[-1].get_schema_dict().items():
+            if column_name not in columns_list:
+                added_columns.append(f'{column_name} {column_type}')
+        if len(added_columns) > 0:
+            alter_query = f"ALTER TABLE {silver_table_name} ADD COLUMNS (\n\t"
+            alter_query += '\n\t,'.join(added_columns)
+            alter_query += ');'
+            print(alter_query)
+            spark.sql(alter_query)
     return result_table_describers
