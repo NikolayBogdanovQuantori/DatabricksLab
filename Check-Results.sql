@@ -3,11 +3,41 @@ USE DATABASE LAB;
 
 -- COMMAND ----------
 
+SELECT COUNT(DISTINCT (experiment_id)), COUNT(experiment_id) FROM register_pdb_actualizer --order by updated_ts desc;
+
+-- COMMAND ----------
+
+SELECT 
+  experiment_id,
+  MAX(updated_ts) as max_ts,
+  MIN(updated_ts) as min_ts
+FROM bronze_entity
+GROUP BY experiment_id
+HAVING max_ts != min_ts
+
+-- COMMAND ----------
+
+SELECT 
+  updated_ts,
+  COUNT(experiment_id)
+FROM(
+  SELECT 
+    experiment_id,
+    MAX(updated_ts) as updated_ts
+  FROM bronze_entity
+  GROUP BY experiment_id
+)
+GROUP BY updated_ts
+ORDER BY updated_ts desc
+
+
+-- COMMAND ----------
+
 SELECT * FROM register_pdb_actualizer order by updated_ts desc;
 
 -- COMMAND ----------
 
-SELECT * FROM bronze_entity order by experiment_id, id;
+SELECT * FROM bronze_entity order by updated_ts desc, experiment_id, id;
 
 -- COMMAND ----------
 

@@ -31,7 +31,9 @@ def fill_config_pdb_actualizer(path):
 
 # COMMAND ----------
 
-fill_config_pdb_actualizer('/dbfs/FileStore/Lab/Tests/test_1.txt')
+#fill_config_pdb_actualizer('/dbfs/FileStore/Lab/Tests/test_1.txt') # 307
+#fill_config_pdb_actualizer('/dbfs/FileStore/Lab/Tests/insulin_experiments_list.txt') # 316
+fill_config_pdb_actualizer('/dbfs/FileStore/Lab/Tests/green_fluorescent_protein_experiments_list.txt')V # 426
 
 # COMMAND ----------
 
